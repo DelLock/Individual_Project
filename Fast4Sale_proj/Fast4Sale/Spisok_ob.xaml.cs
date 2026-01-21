@@ -14,9 +14,6 @@ using System.Windows.Shapes;
 
 namespace Fast4Sale
 {
-    /// <summary>
-    /// Логика взаимодействия для Spisok_ob.xaml
-    /// </summary>
     public partial class Spisok_ob : Window
     {
         public Spisok_ob()
@@ -25,7 +22,7 @@ namespace Fast4Sale
             LoadAdvertisements();
         }
 
-        private void AddCard(string title, string address, string price)
+        private void AddCard(Advertisement ad)
         {
             Border card = new Border
             {
@@ -59,7 +56,7 @@ namespace Fast4Sale
 
             TextBlock titleText = new TextBlock
             {
-                Text = title,
+                Text = ad.Title,
                 FontSize = 16,
                 FontWeight = FontWeights.Bold,
                 Foreground = Brushes.White
@@ -67,18 +64,25 @@ namespace Fast4Sale
 
             TextBlock addressText = new TextBlock
             {
-                Text = address,
+                Text = ad.Address,
                 Foreground = new SolidColorBrush(Color.FromRgb(203, 213, 225)),
                 Margin = new Thickness(0, 5, 0, 0)
             };
 
             TextBlock priceText = new TextBlock
             {
-                Text = price,
+                Text = ad.Price + "₽",
                 FontSize = 14,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
                 Margin = new Thickness(0, 10, 0, 0)
+            };
+
+            StackPanel buttonsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 15, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Left
             };
 
             Button details = new Button
@@ -88,18 +92,85 @@ namespace Fast4Sale
                 Height = 25,
                 Background = new SolidColorBrush(Color.FromRgb(59, 130, 246)),
                 Foreground = Brushes.White,
-                Margin = new Thickness(0, 15, 0, 0)
+                Margin = new Thickness(0, 0, 10, 0)
             };
 
+            Button change = new Button
+            {
+                Content = "Редактировать",
+                Width = 100,
+                Height = 25,
+                Background = new SolidColorBrush(Color.FromRgb(245, 158, 11)),
+                Foreground = Brushes.White,
+                Margin = new Thickness(0, 0, 10, 0)
+            };
+
+            Button delete = new Button
+            {
+                Content = "Удалить",
+                Width = 100,
+                Height = 25,
+                Background = new SolidColorBrush(Color.FromRgb(239, 68, 68)),
+                Foreground = Brushes.White
+            };
+
+            buttonsPanel.Children.Add(details);
+
+            BD bD = new BD();
+            if(ad.UserId == Global.ID)
+            {
+                buttonsPanel.Children.Add(change);
+                buttonsPanel.Children.Add(delete);
+            }
+            
             details.Click += (s, e) =>
             {
-                MessageBox.Show($"{title}\n{address}\n{price}", "Подробности");
+                AboutAd aboutWindow = new AboutAd(ad.Id);
+                aboutWindow.ShowDialog();
+            };
+
+            change.Click += (s, e) =>
+            {
+                New_ob editWindow = new New_ob();
+                editWindow.PublishButton.Content = "Принять изменения";
+
+                editWindow.EditAdId = ad.Id;
+                editWindow.ShowDialog();
+
+                LoadAdvertisements();
+                
+
+            };
+
+            delete.Click += (s, e) =>
+            {
+                MessageBoxResult result = MessageBox.Show(
+                    $"Вы уверены, что хотите удалить объявление \"{ad.Title}\"?",
+                    "Подтверждение удаления",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (result == MessageBoxResult.Yes)
+                {
+                    BD bd = new BD();
+                    bool success = bd.DeleteAdvertisement(ad.Id);
+
+                    if (success)
+                    {
+                        MessageBox.Show("Объявление удалено");
+                        LoadAdvertisements();
+                    }
+                    else
+                    {
+                        MessageBox.Show("Ошибка при удалении");
+                    }
+                }
             };
 
             info.Children.Add(titleText);
             info.Children.Add(addressText);
             info.Children.Add(priceText);
-            info.Children.Add(details);
+            info.Children.Add(buttonsPanel);
 
             grid.Children.Add(image);
             grid.Children.Add(info);
@@ -118,7 +189,7 @@ namespace Fast4Sale
 
         private void Add_Click(object sender, RoutedEventArgs e)
         {
-            if(Global.ID != -1)
+            if (Global.ID != -1)
             {
                 New_ob new_Ob = new New_ob();
                 new_Ob.ShowDialog();
@@ -127,7 +198,7 @@ namespace Fast4Sale
             }
             else
             {
-                MessageBox.Show("Только авторизированные пользователи могут выстявлять недвижимость");
+                MessageBox.Show("Только авторизированные пользователи могут выставлять недвижимость");
             }
         }
 
@@ -135,18 +206,15 @@ namespace Fast4Sale
         {
             BD bd = new BD();
 
-            List<Advertisement> ads = bd.GetAllAdvertisements(); // Используй новый метод из BD
+            List<Advertisement> ads = bd.GetAllAdvertisements();
 
-            // Очищаем список
             ListPanel.Children.Clear();
 
-            // Добавляем карточки из БД
             foreach (var ad in ads)
             {
-                AddCard(ad.Title, ad.Address, ad.Price.ToString() + "₽");
+                AddCard(ad);
             }
 
-            // Если нет объявлений
             if (ads.Count == 0)
             {
                 TextBlock noAds = new TextBlock
