@@ -16,11 +16,9 @@ public class Advertisement
     public string Floor { get; set; }
     public string TotalFloors { get; set; }
     public string Price { get; set; }
-    public string Contact { get; set; }
-    public string Phone { get; set; }
-    public string Email { get; set; }
     public string Type { get; set; }
     public DateTime CreatedDate { get; set; }
+    public byte[] PhotoData { get; set; }
 }
 
 
@@ -42,6 +40,7 @@ namespace Fast4Sale
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         Username TEXT NOT NULL,
                         Email TEXT NOT NULL,
+                        PhoneNumber TEXT NOT NULL,
                         Password TEXT NOT NULL
                     )";
                 new SQLiteCommand(sql, connection).ExecuteNonQuery();
@@ -58,11 +57,8 @@ namespace Fast4Sale
                         Floor TEXT,
                         TotalFloors TEXT,
                         Price TEXT NOT NULL,
-                        Contact TEXT NOT NULL,
-                        Phone TEXT,
-                        Email TEXT,
                         Type TEXT NOT NULL,
-                        PhotoData BLOB,  -- ДОБАВИЛИ ПОЛЕ ДЛЯ ФОТО
+                        PhotoData BLOB,
                         CreatedDate DATETIME DEFAULT CURRENT_TIMESTAMP,
                         FOREIGN KEY (UserId) REFERENCES Users(Id)
                     )";
@@ -70,19 +66,49 @@ namespace Fast4Sale
             }
         }
 
-
-        public void SaveUser(string username, string email, string password)
+        public (string Username, string Email, string PhoneNumber) GetUserContacts(int userId)
         {
             using (var connection = new SQLiteConnection(connectionString))
             {
                 connection.Open();
 
-                string sql = "INSERT INTO Users (Username, Email, Password) VALUES (@u, @e, @p)";
+                string sql = "SELECT Username, Email, PhoneNumber FROM Users WHERE Id = @id";
+
+                using (var cmd = new SQLiteCommand(sql, connection))
+                {
+                    cmd.Parameters.AddWithValue("@id", userId);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return (
+                                reader["Username"].ToString(),
+                                reader["Email"].ToString(),
+                                reader["PhoneNumber"].ToString()
+                            );
+                        }
+                    }
+                }
+            }
+
+            return (string.Empty, string.Empty, string.Empty);
+        }
+
+
+        public void SaveUser(string username, string email, string PhoneNumber, string password)
+        {
+            using (var connection = new SQLiteConnection(connectionString))
+            {
+                connection.Open();
+
+                string sql = "INSERT INTO Users (Username, Email, PhoneNumber, Password) VALUES (@u, @e, @num, @p)";
 
                 using (var cmd = new SQLiteCommand(sql, connection))
                 {
                     cmd.Parameters.AddWithValue("@u", username);
                     cmd.Parameters.AddWithValue("@e", email);
+                    cmd.Parameters.AddWithValue("@num", PhoneNumber);
                     cmd.Parameters.AddWithValue("@p", password);
                     cmd.ExecuteNonQuery();
                 }
@@ -195,7 +221,7 @@ namespace Fast4Sale
 
         public int SaveAdvertisement(int userId, string title, string address, string description,
                                     string area, string rooms, string floor, string totalFloors, string price,
-                                    string contact, string phone, string email, string type)
+                                    string type, byte[] photo)
         {
             using (var connection = new SQLiteConnection(connectionString))
             {
@@ -203,8 +229,8 @@ namespace Fast4Sale
 
                 string sql = @"
                     INSERT INTO Advertisements 
-                    (UserId, Title, Address, Description, Area, Rooms, Floor, TotalFloors, Price, Contact, Phone, Email, Type) 
-                    VALUES (@userId, @title, @address, @description, @area, @rooms, @floor, @totalFloors, @price, @contact, @phone, @email, @type);
+                    (UserId, Title, Address, Description, Area, Rooms, Floor, TotalFloors, Price, Type, PhotoData) 
+                    VALUES (@userId, @title, @address, @description, @area, @rooms, @floor, @totalFloors, @price, @type, @photo);
                     SELECT last_insert_rowid();";
 
                 using (var cmd = new SQLiteCommand(sql, connection))
@@ -218,10 +244,8 @@ namespace Fast4Sale
                     cmd.Parameters.AddWithValue("@floor", floor);
                     cmd.Parameters.AddWithValue("@totalFloors", totalFloors);
                     cmd.Parameters.AddWithValue("@price", price);
-                    cmd.Parameters.AddWithValue("@contact", contact);
-                    cmd.Parameters.AddWithValue("@phone", phone);
-                    cmd.Parameters.AddWithValue("@email", email);
                     cmd.Parameters.AddWithValue("@type", type);
+                    cmd.Parameters.AddWithValue("@photo", photo);
 
                     return Convert.ToInt32(cmd.ExecuteScalar());
                 }
@@ -260,11 +284,9 @@ namespace Fast4Sale
                             Floor = reader["Floor"].ToString(),
                             TotalFloors = reader["TotalFloors"].ToString(),
                             Price = reader["Price"].ToString(),
-                            Contact = reader["Contact"].ToString(),
-                            Phone = reader["Phone"].ToString(),
-                            Email = reader["Email"].ToString(),
                             Type = reader["Type"].ToString(),
-                            CreatedDate = Convert.ToDateTime(reader["CreatedDate"])
+                            CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
+                            PhotoData = reader["PhotoData"] as byte[]
                         });
                     }
                 }
@@ -298,7 +320,8 @@ namespace Fast4Sale
                                 Address = reader["Address"].ToString(),
                                 Price = reader["Price"].ToString(),
                                 Type = reader["Type"].ToString(),
-                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"])
+                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
+                                PhotoData = reader["PhotoData"] as byte[]
                             });
                         }
                     }
@@ -332,10 +355,10 @@ namespace Fast4Sale
                 connection.Open();
 
                 string sql = @"
-            SELECT a.*, u.Username 
-            FROM Advertisements a
-            LEFT JOIN Users u ON a.UserId = u.Id
-            WHERE a.Id = @adId";
+                    SELECT a.*, u.Username 
+                    FROM Advertisements a
+                    LEFT JOIN Users u ON a.UserId = u.Id
+                    WHERE a.Id = @adId";
 
                 using (var cmd = new SQLiteCommand(sql, connection))
                 {
@@ -358,11 +381,9 @@ namespace Fast4Sale
                                 Floor = reader["Floor"].ToString(),
                                 TotalFloors = reader["TotalFloors"].ToString(),
                                 Price = reader["Price"].ToString(),
-                                Contact = reader["Contact"].ToString(),
-                                Phone = reader["Phone"].ToString(),
-                                Email = reader["Email"].ToString(),
                                 Type = reader["Type"].ToString(),
-                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"])
+                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
+                                PhotoData = reader["PhotoData"] as byte[]
                             };
 
                             return ad;
@@ -376,18 +397,26 @@ namespace Fast4Sale
 
         public bool UpdateAdvertisement(int adId, string title, string address, string description,
                                 string area, string rooms, string floor, string totalFloors, string price,
-                                string contact, string phone, string email, string type)
+                                string type, byte[] photo)
         {
             using (var connection = new SQLiteConnection(connectionString))
             {
                 connection.Open();
 
                 string sql = @"
-            UPDATE Advertisements 
-            SET Title = @title, Address = @address, Description = @description, 
-                Area = @area, Rooms = @rooms, Floor = @floor, TotalFloors = @totalFloors, 
-                Price = @price, Contact = @contact, Phone = @phone, Email = @email, Type = @type
-            WHERE Id = @adId";
+                    UPDATE Advertisements
+                    SET
+                        Title = @title,
+                        Address = @address,
+                        Description = @description,
+                        Area = @area,
+                        Rooms = @rooms,
+                        Floor = @floor,
+                        TotalFloors = @totalFloors,
+                        Price = @price,
+                        Type = @type,
+                        PhotoData = COALESCE(@photo, PhotoData)
+                    WHERE Id = @adId";
 
                 using (var cmd = new SQLiteCommand(sql, connection))
                 {
@@ -400,10 +429,8 @@ namespace Fast4Sale
                     cmd.Parameters.AddWithValue("@floor", floor);
                     cmd.Parameters.AddWithValue("@totalFloors", totalFloors);
                     cmd.Parameters.AddWithValue("@price", price);
-                    cmd.Parameters.AddWithValue("@contact", contact);
-                    cmd.Parameters.AddWithValue("@phone", phone);
-                    cmd.Parameters.AddWithValue("@email", email);
                     cmd.Parameters.AddWithValue("@type", type);
+                    cmd.Parameters.AddWithValue("@photo", photo ?? (object)DBNull.Value);
 
                     int rowsAffected = cmd.ExecuteNonQuery();
                     return rowsAffected > 0;
@@ -411,7 +438,6 @@ namespace Fast4Sale
             }
         }
 
-        // Поиск объявлений
         public List<Advertisement> SearchAdvertisements(string searchTerm, string minPrice, string maxPrice, string type)
         {
             var ads = new List<Advertisement>();
@@ -478,11 +504,9 @@ namespace Fast4Sale
                                 Floor = reader["Floor"].ToString(),
                                 TotalFloors = reader["TotalFloors"].ToString(),
                                 Price = reader["Price"].ToString(),
-                                Contact = reader["Contact"].ToString(),
-                                Phone = reader["Phone"].ToString(),
-                                Email = reader["Email"].ToString(),
                                 Type = reader["Type"].ToString(),
-                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"])
+                                CreatedDate = Convert.ToDateTime(reader["CreatedDate"]),
+                                PhotoData = reader["PhotoData"] as byte[]
                             });
                         }
                     }

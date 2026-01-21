@@ -13,6 +13,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using System.IO;
 
 namespace Fast4Sale
 {
@@ -29,6 +30,7 @@ namespace Fast4Sale
             }
         }
         private int editAdId = -1;
+        private byte[] selectedPhoto;
 
         public New_ob()
         {
@@ -52,9 +54,6 @@ namespace Fast4Sale
                     FloorBox.Text = ad.Floor;
                     TotalFloorsBox.Text = ad.TotalFloors;
                     PriceBox.Text = ad.Price;
-                    ContactBox.Text = ad.Contact;
-                    PhoneBox.Text = ad.Phone;
-                    EmailBox.Text = ad.Email;
 
                     foreach (ComboBoxItem item in TypeBox.Items)
                     {
@@ -67,12 +66,27 @@ namespace Fast4Sale
 
                     Title = "Редактировать объявление";
                     PublishButton.Content = "Сохранить изменения";
+
+                    if (ad.PhotoData != null && ad.PhotoData.Length > 0)
+                    {
+                        selectedPhoto = ad.PhotoData;
+
+                        BitmapImage bitmap = new BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = new MemoryStream(ad.PhotoData);
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+
+                        PreviewImage.Source = bitmap;
+                    }
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Ошибка загрузки: {ex.Message}");
             }
+
         }
 
         private void OnlyNum(object sender, TextCompositionEventArgs e)
@@ -88,11 +102,30 @@ namespace Fast4Sale
             this.Close();
         }
 
+        private void AddPhoto_Click(object sender, MouseButtonEventArgs e)
+        {
+            Microsoft.Win32.OpenFileDialog dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.Filter = "Изображения|*.jpg;*.jpeg;*.png";
+
+            if (dialog.ShowDialog() == true)
+            {
+                selectedPhoto = File.ReadAllBytes(dialog.FileName);
+
+                BitmapImage image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = new MemoryStream(selectedPhoto);
+                image.EndInit();
+
+                PreviewImage.Source = image;
+            }
+        }
+
         private void PublishButton_Click(object sender, RoutedEventArgs e)
         {
             if (Name.Text == "" || AddressBox.Text == "" || Description.Text == "" ||
                 TypeBox.SelectedItem == null || AreaBox.Text == "" || RoomsBox.Text == "" ||
-                PriceBox.Text == "" || ContactBox.Text == "" || PhoneBox.Text == "")
+                PriceBox.Text == "")
             {
                 MessageBox.Show("Заполните обязательные данные");
                 return;
@@ -120,10 +153,8 @@ namespace Fast4Sale
                         floor: FloorBox.Text.Trim(),
                         totalFloors: TotalFloorsBox.Text.Trim(),
                         price: PriceBox.Text.Trim(),
-                        contact: ContactBox.Text.Trim(),
-                        phone: PhoneBox.Text.Trim(),
-                        email: EmailBox.Text.Trim(),
-                        type: selectedType
+                        type: selectedType,
+                        photo: selectedPhoto
                     );
 
                     if (success)
@@ -148,13 +179,11 @@ namespace Fast4Sale
                         floor: FloorBox.Text.Trim(),
                         totalFloors: TotalFloorsBox.Text.Trim(),
                         price: PriceBox.Text.Trim(),
-                        contact: ContactBox.Text.Trim(),
-                        phone: PhoneBox.Text.Trim(),
-                        email: EmailBox.Text.Trim(),
-                        type: selectedType
+                        type: selectedType,
+                        photo: selectedPhoto
                     );
 
-                    MessageBox.Show($"Объявление #{advertisementId} успешно опубликовано!");
+                    MessageBox.Show("Объявление успешно опубликовано!");
                     this.Close();
                 }
             }
